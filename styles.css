@@ -1,20 +1,16 @@
-/*
- * Telescope cURL Exporter — floating action button
- * Injected into document.body (outside Vue's DOM), fixed to the top-right corner.
- */
+/* ── Trigger button ──────────────────────────────────────────────────────── */
 
-#tcurl-btn.tcurl-btn {
+#tcurl-trigger.tcurl-trigger {
   position: fixed;
   top: 18px;
   right: 20px;
-  z-index: 2147483647;
+  z-index: 2147483646;
 
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 6px 13px;
 
-  /* Telescope's primary color (#4040c8) */
   background-color: #4040c8;
   color: #fff;
   border: none;
@@ -27,22 +23,235 @@
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  transition: background-color 0.15s, transform 0.1s;
 }
 
-#tcurl-btn.tcurl-btn:hover {
-  background-color: #3232a8;
+#tcurl-trigger.tcurl-trigger:hover  { background-color: #3232a8; }
+#tcurl-trigger.tcurl-trigger:active { transform: scale(0.96); }
+
+/* ── Panel ───────────────────────────────────────────────────────────────── */
+
+#tcurl-panel.tcurl-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147483647;
+
+  width: 480px;
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+
+  background: #1a1a2e;
+  color: #e2e8f0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+
+  font-family: Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+
+  transform: translateX(100%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#tcurl-btn.tcurl-btn:active {
-  transform: scale(0.96);
+#tcurl-panel.tcurl-panel.tcurl-panel-open {
+  transform: translateX(0);
 }
 
-#tcurl-btn.tcurl-btn.tcurl-copied {
-  background-color: #059669;
+/* ── Panel header ── */
+
+.tcurl-panel-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+  gap: 10px;
 }
 
-#tcurl-btn.tcurl-btn svg {
+.tcurl-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+
+.tcurl-panel-hdr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
+
+.tcurl-share-btn {
+  padding: 4px 12px;
+  background: #4040c8;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.tcurl-share-btn:hover    { background: #3232a8; }
+.tcurl-share-btn.tcurl-flashed { background: #059669; }
+
+.tcurl-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tcurl-close-btn:hover { color: #f1f5f9; background: rgba(255,255,255,0.08); }
+
+/* ── Panel body (scrollable) ── */
+
+.tcurl-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+.tcurl-panel-body::-webkit-scrollbar       { width: 5px; }
+.tcurl-panel-body::-webkit-scrollbar-track { background: transparent; }
+.tcurl-panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+/* ── Sections ── */
+
+.tcurl-section {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tcurl-section:last-child {
+  border-bottom: none;
+}
+
+.tcurl-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.tcurl-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+/* Method badges */
+.tcurl-method-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.1);
+  color: #e2e8f0;
+}
+.tcurl-method-get    { background: rgba(37, 99, 235, 0.25); color: #93c5fd; }
+.tcurl-method-post   { background: rgba(5, 150, 105, 0.25); color: #6ee7b7; }
+.tcurl-method-put    { background: rgba(217, 119, 6, 0.25); color: #fcd34d; }
+.tcurl-method-patch  { background: rgba(139, 92, 246, 0.25); color: #c4b5fd; }
+.tcurl-method-delete { background: rgba(220, 38, 38, 0.25); color: #fca5a5; }
+
+/* Status badges */
+.tcurl-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-grow: 1;
+}
+.tcurl-status-ok         { background: rgba(5, 150, 105, 0.2); color: #6ee7b7; }
+.tcurl-status-redirect   { background: rgba(37, 99, 235, 0.2); color: #93c5fd; }
+.tcurl-status-client-err { background: rgba(217, 119, 6, 0.2); color: #fcd34d; }
+.tcurl-status-server-err { background: rgba(220, 38, 38, 0.2); color: #fca5a5; }
+.tcurl-status-unknown    { background: rgba(255,255,255,0.1); color: #94a3b8; }
+
+/* Copy small button */
+.tcurl-copy-small {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.tcurl-copy-small:hover          { background: rgba(255,255,255,0.14); color: #f1f5f9; }
+.tcurl-copy-small.tcurl-flashed  { background: rgba(5, 150, 105, 0.3); color: #6ee7b7; border-color: rgba(5,150,105,0.3); }
+
+/* Code blocks */
+.tcurl-code {
+  margin: 0;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #cdd6f4;
+  white-space: pre;
+  overflow-x: auto;
+  word-break: break-all;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+.tcurl-code-sm {
+  font-size: 11px;
+  max-height: 180px;
+}
+
+.tcurl-code::-webkit-scrollbar       { width: 4px; height: 4px; }
+.tcurl-code::-webkit-scrollbar-track { background: transparent; }
+.tcurl-code::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+/* Empty / muted */
+.tcurl-empty       { margin: 0; font-size: 12px; color: #64748b; font-style: italic; }
+.tcurl-empty-muted { padding: 4px 0; }
+
+/* Response headers collapsible */
+.tcurl-details {
+  margin-top: 10px;
+}
+
+.tcurl-details summary {
+  font-size: 11px;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.tcurl-details summary:hover { color: #94a3b8; }
+.tcurl-details[open] summary { margin-bottom: 8px; }

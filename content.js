@@ -2,8 +2,6 @@
   'use strict';
 
   // ── Inject page.js into the PAGE context so it can intercept XHR ──────────
-  // Content scripts run in an isolated world; to intercept XMLHttpRequest we
-  // must inject a real <script> tag that runs in the page's JS context.
   const pageScript = document.createElement('script');
   pageScript.src = chrome.runtime.getURL('page.js');
   (document.head || document.documentElement).prepend(pageScript);
@@ -11,13 +9,10 @@
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  const BUTTON_ID = 'tcurl-btn';
-
   function isClientRequestPage() {
     return /\/client-requests\/[0-9a-f-]{36}/i.test(window.location.pathname);
   }
 
-  // Escape single quotes for POSIX shell single-quoted strings.
   function q(str) {
     return String(str).replace(/'/g, "'\\''");
   }
@@ -43,9 +38,10 @@
       !['GET', 'HEAD'].includes(method);
 
     if (hasBody) {
-      if (ct.includes('application/json')) {
+      const ct2 = ct;
+      if (ct2.includes('application/json')) {
         parts.push(`  --data-raw '${q(JSON.stringify(payload))}'`);
-      } else if (ct.includes('multipart/form-data')) {
+      } else if (ct2.includes('multipart/form-data')) {
         for (const [k, v] of Object.entries(payload)) {
           const val = (v && typeof v === 'object' && v.name) ? `@${v.name}` : String(v ?? '');
           parts.push(`  -F '${q(`${k}=${val}`)}'`);
@@ -61,52 +57,230 @@
     return parts.join(' \\\n');
   }
 
-  // ── Button ────────────────────────────────────────────────────────────────
-
-  const ICON_COPY = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-  const ICON_CHECK = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-
-  function showButton(curlCmd) {
-    // Remove stale button (navigated to a new entry).
-    const prev = document.getElementById(BUTTON_ID);
-    if (prev) prev.remove();
-
-    if (!isClientRequestPage()) return;
-
-    const btn = document.createElement('button');
-    btn.id        = BUTTON_ID;
-    btn.className = 'tcurl-btn';
-    btn.title     = 'Copy HTTP request as cURL command';
-    btn.innerHTML = `${ICON_COPY} Copy as cURL`;
-
-    btn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(curlCmd);
-      } catch {
-        // Clipboard API not available — textarea fallback.
-        const ta = document.createElement('textarea');
-        ta.value = curlCmd;
-        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        ta.remove();
-      }
-
-      const prev = btn.innerHTML;
-      btn.classList.add('tcurl-copied');
-      btn.innerHTML = `${ICON_CHECK} Copied!`;
-      setTimeout(() => {
-        btn.classList.remove('tcurl-copied');
-        btn.innerHTML = prev;
-      }, 2000);
-    });
-
-    document.body.appendChild(btn);
+  function formatResponseBody(response) {
+    if (!response) return '';
+    if (typeof response === 'object') {
+      return JSON.stringify(response, null, 2);
+    }
+    return String(response);
   }
 
-  function hideButton() {
-    document.getElementById(BUTTON_ID)?.remove();
+  function statusLabel(status) {
+    const labels = {
+      200: 'OK', 201: 'Created', 204: 'No Content',
+      301: 'Moved Permanently', 302: 'Found',
+      400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden',
+      404: 'Not Found', 409: 'Conflict', 422: 'Unprocessable Entity',
+      429: 'Too Many Requests', 500: 'Internal Server Error',
+      502: 'Bad Gateway', 503: 'Service Unavailable',
+    };
+    return labels[status] ? `${status} ${labels[status]}` : String(status ?? '—');
+  }
+
+  function statusClass(status) {
+    if (!status) return 'tcurl-status-unknown';
+    if (status < 300) return 'tcurl-status-ok';
+    if (status < 400) return 'tcurl-status-redirect';
+    if (status < 500) return 'tcurl-status-client-err';
+    return 'tcurl-status-server-err';
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+  }
+
+  function flashButton(btn, label = 'Copied!') {
+    const prev = btn.textContent;
+    btn.textContent = label;
+    btn.classList.add('tcurl-flashed');
+    setTimeout(() => {
+      btn.textContent = prev;
+      btn.classList.remove('tcurl-flashed');
+    }, 1800);
+  }
+
+  // ── Build the "Copy All" shareable text ───────────────────────────────────
+
+  function buildShareText(content) {
+    const method   = (content.method || 'GET').toUpperCase();
+    const uri      = content.uri || '';
+    const status   = content.response_status;
+    const curl     = buildCurl(content);
+    const body     = formatResponseBody(content.response);
+    const duration = content.duration ? `${content.duration}ms` : null;
+
+    let text = `${method} ${uri}\n`;
+    text += `${'─'.repeat(60)}\n\n`;
+    text += `REQUEST (curl)\n${curl}\n`;
+
+    if (status) {
+      text += `\n${'─'.repeat(60)}\n`;
+      text += `RESPONSE — ${statusLabel(status)}`;
+      if (duration) text += ` (${duration})`;
+      text += '\n';
+      if (body) text += `\n${body}\n`;
+    }
+
+    return text;
+  }
+
+  // ── Panel ─────────────────────────────────────────────────────────────────
+
+  const TRIGGER_ID = 'tcurl-trigger';
+  const PANEL_ID   = 'tcurl-panel';
+
+  function removeUI() {
+    document.getElementById(TRIGGER_ID)?.remove();
+    document.getElementById(PANEL_ID)?.remove();
+  }
+
+  function createPanel(content) {
+    const curl         = buildCurl(content);
+    const responseBody = formatResponseBody(content.response);
+    const status       = content.response_status;
+    const duration     = content.duration ? ` · ${content.duration}ms` : '';
+    const respHeaders  = content.response_headers || {};
+    const method       = (content.method || 'GET').toUpperCase();
+
+    const panel = document.createElement('div');
+    panel.id        = PANEL_ID;
+    panel.className = 'tcurl-panel';
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.className = 'tcurl-panel-hdr';
+    hdr.innerHTML = `
+      <span class="tcurl-panel-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+        HTTP Client Request
+      </span>
+      <div class="tcurl-panel-hdr-actions">
+        <button class="tcurl-share-btn" id="tcurl-share-btn">Copy All</button>
+        <button class="tcurl-close-btn" id="tcurl-close-btn">✕</button>
+      </div>
+    `;
+    panel.appendChild(hdr);
+
+    // Body (scrollable)
+    const body = document.createElement('div');
+    body.className = 'tcurl-panel-body';
+
+    // ── REQUEST section ──
+    const reqSection = document.createElement('div');
+    reqSection.className = 'tcurl-section';
+    reqSection.innerHTML = `
+      <div class="tcurl-section-hdr">
+        <span class="tcurl-section-label">REQUEST</span>
+        <span class="tcurl-method-badge tcurl-method-${method.toLowerCase()}">${method}</span>
+        <button class="tcurl-copy-small" id="tcurl-copy-curl">Copy cURL</button>
+      </div>
+      <pre class="tcurl-code">${escapeHtml(curl)}</pre>
+    `;
+    body.appendChild(reqSection);
+
+    // ── RESPONSE section ──
+    if (status) {
+      const resSection = document.createElement('div');
+      resSection.className = 'tcurl-section';
+
+      const respHeadersText = Object.entries(respHeaders).length > 0
+        ? Object.entries(respHeaders).map(([k, v]) => `${k}: ${v}`).join('\n')
+        : null;
+
+      resSection.innerHTML = `
+        <div class="tcurl-section-hdr">
+          <span class="tcurl-section-label">RESPONSE</span>
+          <span class="tcurl-status-badge ${statusClass(status)}">${statusLabel(status)}${duration}</span>
+          <button class="tcurl-copy-small" id="tcurl-copy-response">Copy Body</button>
+        </div>
+        ${responseBody ? `<pre class="tcurl-code">${escapeHtml(responseBody)}</pre>` : '<p class="tcurl-empty">Empty response body</p>'}
+        ${respHeadersText ? `
+          <details class="tcurl-details">
+            <summary>Response Headers</summary>
+            <pre class="tcurl-code tcurl-code-sm">${escapeHtml(respHeadersText)}</pre>
+          </details>
+        ` : ''}
+      `;
+      body.appendChild(resSection);
+    } else {
+      const noRes = document.createElement('div');
+      noRes.className = 'tcurl-section';
+      noRes.innerHTML = '<p class="tcurl-empty tcurl-empty-muted">No response captured (connection may have failed)</p>';
+      body.appendChild(noRes);
+    }
+
+    panel.appendChild(body);
+    document.body.appendChild(panel);
+
+    // Wire up buttons
+    document.getElementById('tcurl-close-btn').addEventListener('click', () => {
+      panel.classList.remove('tcurl-panel-open');
+    });
+
+    document.getElementById('tcurl-copy-curl').addEventListener('click', async (e) => {
+      await copyText(curl);
+      flashButton(e.currentTarget);
+    });
+
+    const copyResponseBtn = document.getElementById('tcurl-copy-response');
+    if (copyResponseBtn) {
+      copyResponseBtn.addEventListener('click', async (e) => {
+        await copyText(responseBody);
+        flashButton(e.currentTarget);
+      });
+    }
+
+    document.getElementById('tcurl-share-btn').addEventListener('click', async (e) => {
+      await copyText(buildShareText(content));
+      flashButton(e.currentTarget, 'Copied ✓');
+    });
+
+    // Open with animation on next tick
+    requestAnimationFrame(() => panel.classList.add('tcurl-panel-open'));
+
+    return panel;
+  }
+
+  function showUI(content) {
+    removeUI();
+    if (!isClientRequestPage()) return;
+
+    // ── Trigger button ──
+    const trigger = document.createElement('button');
+    trigger.id        = TRIGGER_ID;
+    trigger.className = 'tcurl-trigger';
+    trigger.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+      Export cURL
+    `;
+    document.body.appendChild(trigger);
+
+    let panelEl = null;
+
+    trigger.addEventListener('click', () => {
+      if (!panelEl || !document.getElementById(PANEL_ID)) {
+        panelEl = createPanel(content);
+      } else {
+        panelEl.classList.toggle('tcurl-panel-open');
+      }
+    });
   }
 
   // ── Listen for entry data from the page-context interceptor ───────────────
@@ -115,30 +289,22 @@
     try {
       const entry = JSON.parse(e.detail);
       if (isClientRequestPage()) {
-        showButton(buildCurl(entry.content));
+        showUI(entry.content);
       }
     } catch (_) {}
   });
 
-  // ── SPA navigation: show/hide the button on route changes ─────────────────
+  // ── SPA navigation: clean up when leaving a client-request page ───────────
 
   let lastHref = location.href;
 
   function onNavigation() {
     if (location.href === lastHref) return;
     lastHref = location.href;
-
-    if (!isClientRequestPage()) {
-      hideButton();
-    }
-    // If navigating TO a client-requests page, the XHR intercept in page.js
-    // will fire when Vue loads the new entry and dispatch __tcurl:entry__.
+    if (!isClientRequestPage()) removeUI();
   }
 
-  window.addEventListener('popstate', () => {
-    lastHref = location.href;
-    onNavigation();
-  });
+  window.addEventListener('popstate', () => { lastHref = location.href; onNavigation(); });
 
   ['pushState', 'replaceState'].forEach((method) => {
     const original = history[method].bind(history);
@@ -148,9 +314,7 @@
     };
   });
 
-  // Catch-all for any navigation mechanism.
   new MutationObserver(onNavigation).observe(document, { childList: true, subtree: true });
 
-  // Hide button on initial load if not on a client-request page.
-  if (!isClientRequestPage()) hideButton();
+  if (!isClientRequestPage()) removeUI();
 })();
