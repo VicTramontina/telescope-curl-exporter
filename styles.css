@@ -1,27 +1,34 @@
 /*
- * Telescope cURL Exporter — button styles
- * Uses Telescope's primary color (#4040c8) to blend naturally with the UI.
+ * Telescope cURL Exporter — floating action button
+ * Injected into document.body (outside Vue's DOM), fixed to the top-right corner.
  */
 
 #tcurl-btn.tcurl-btn {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 2147483647;
+
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 11px;
+  gap: 6px;
+  padding: 6px 13px;
+
+  /* Telescope's primary color (#4040c8) */
   background-color: #4040c8;
   color: #fff;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
+
   font-family: Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+
   transition: background-color 0.15s ease, transform 0.1s ease;
-  flex-shrink: 0;
-  /* Telescope uses margin: 0 on card-header children — prevent overflow */
-  margin-left: auto;
 }
 
 #tcurl-btn.tcurl-btn:hover {

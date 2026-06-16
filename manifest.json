@@ -2,13 +2,19 @@
   "manifest_version": 3,
   "name": "Telescope cURL Exporter",
   "description": "Adds a 'Copy as cURL' button to Laravel Telescope HTTP Client Request detail pages.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["styles.css"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page.js"],
+      "matches": ["<all_urls>"]
     }
   ],
   "permissions": ["clipboardWrite"],
