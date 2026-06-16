@@ -1,0 +1,41 @@
+/*
+ * Telescope cURL Exporter — button styles
+ * Uses Telescope's primary color (#4040c8) to blend naturally with the UI.
+ */
+
+#tcurl-btn.tcurl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  background-color: #4040c8;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-family: Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
+  /* Telescope uses margin: 0 on card-header children — prevent overflow */
+  margin-left: auto;
+}
+
+#tcurl-btn.tcurl-btn:hover {
+  background-color: #3232a8;
+}
+
+#tcurl-btn.tcurl-btn:active {
+  transform: scale(0.96);
+}
+
+#tcurl-btn.tcurl-btn.tcurl-copied {
+  background-color: #059669;
+}
+
+#tcurl-btn.tcurl-btn svg {
+  flex-shrink: 0;
+}
