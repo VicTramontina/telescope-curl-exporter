@@ -2,8 +2,10 @@
   'use strict';
 
   // ── Inject page.js into the PAGE context so it can intercept XHR ──────────
+  // Use `chrome` (Chrome/Edge/Firefox MV3) or fall back to `browser` (Firefox MV2).
+  const _ext = typeof chrome !== 'undefined' ? chrome : browser;
   const pageScript = document.createElement('script');
-  pageScript.src = chrome.runtime.getURL('page.js');
+  pageScript.src = _ext.runtime.getURL('page.js');
   (document.head || document.documentElement).prepend(pageScript);
   pageScript.remove();
 
