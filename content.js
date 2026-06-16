@@ -235,21 +235,24 @@
     });
 
     document.getElementById('tcurl-copy-curl').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
       await copyText(curl);
-      flashButton(e.currentTarget);
+      flashButton(btn);
     });
 
     const copyResponseBtn = document.getElementById('tcurl-copy-response');
     if (copyResponseBtn) {
       copyResponseBtn.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
         await copyText(responseBody);
-        flashButton(e.currentTarget);
+        flashButton(btn);
       });
     }
 
     document.getElementById('tcurl-share-btn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
       await copyText(buildShareText(content));
-      flashButton(e.currentTarget, 'Copied ✓');
+      flashButton(btn, 'Copied ✓');
     });
 
     // Open with animation on next tick
